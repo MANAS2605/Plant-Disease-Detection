@@ -37,9 +37,10 @@ A deep learning pipeline that classifies **crop disease categories** using **Eff
 
 ```
 crop disease detection/
-├── crop_disease_detection.py    # Main training & inference script (optimized for Colab)
-├── requirements.txt             # Python dependencies
-└── README.md                    # This file
+├── crop_disease_detection.py      # Main training & inference script (Python version)
+├── Crop_Disease_Detection.ipynb   # Jupyter notebook (recommended for Colab)
+├── requirements.txt               # Python dependencies
+└── README.md                      # This file
 ```
 
 ---
@@ -61,65 +62,86 @@ crop disease detection/
 
 ### Run on Google Colab (Recommended)
 
-This script is **optimized for Google Colab** where Kaggle API is readily available. Follow these steps:
+**Option A: Using the Jupyter Notebook (Easiest)**
 
-#### Step 1: Set Up Kaggle Authentication
-1. Go to [kaggle.com](https://www.kaggle.com/settings/account)
-2. Click **Create New Token** — this downloads `kaggle.json`
-3. In Colab, the script will prompt you to upload this file
+The `Crop_Disease_Detection.ipynb` is already formatted as a Jupyter notebook and works perfectly on Google Colab:
 
-#### Step 2: Run the Script
 1. Open [Google Colab](https://colab.research.google.com/)
-2. Create a new notebook or upload this script as a `.py` file
-3. Copy and paste the contents of `crop_disease_detection.py` into a Colab cell, or upload the file
+2. Click **File → Open notebook → Upload**
+3. Select `Crop_Disease_Detection.ipynb`
 4. **Set Runtime to GPU**: Click `Runtime → Change runtime type → T4 GPU`
-5. Run the cells in order
+5. When prompted, upload your `kaggle.json` file
+6. Run all cells in order with **Shift + Enter**
 
-#### Step 3: Script Workflow
-The script automatically:
+The notebook automatically handles everything:
 - ✅ Installs Kaggle
 - ✅ Downloads the PlantVillage dataset (~3 GB)
-- ✅ Trains the EfficientNetB0 model on the dataset
+- ✅ Trains the EfficientNetB0 model
 - ✅ Performs fine-tuning with unfrozen base layers
 - ✅ Generates accuracy and loss plots
 - ✅ Creates confusion matrix and classification report
-- ✅ Saves the trained model to Google Drive
-- ✅ Loads the model and performs inference on a sample image
+- ✅ Saves all results to Google Drive
+- ✅ Performs inference on a sample image
 
-#### Step 4: Access Your Results
+**Option B: Using the Python Script**
+
+Alternatively, you can convert the Python script to Colab:
+
+1. Open [Google Colab](https://colab.research.google.com/)
+2. Create a new notebook
+3. Copy and paste the contents of `crop_disease_detection.py` into cells
+4. **Set Runtime to GPU**: Click `Runtime → Change runtime type → T4 GPU`
+5. Run the cells in order
+
+#### Kaggle Authentication
+1. Go to [kaggle.com/settings/account](https://www.kaggle.com/settings/account)
+2. Click **Create New Token** — this downloads `kaggle.json`
+3. When the script prompts, upload this file
+
+#### Access Your Results
 After training completes, all results are saved to:
 ```
 Google Drive → My Drive → crop_disease_project/
 ├── model.keras                  # Trained model
-├── class_names.json            # Class labels
-├── history.json                # Training history
-├── accuracy_plot.png           # Accuracy curve
-├── loss_plot.png               # Loss curve
-├── classification_report.txt   # Model metrics
-└── confusion_matrix.npy        # Confusion matrix
+├── class_names.json            # Class labels (38 diseases)
+├── history.json                # Training history (accuracy, loss)
+├── accuracy_plot.png           # Training vs validation accuracy curve
+├── loss_plot.png               # Training vs validation loss curve
+├── classification_report.txt   # Precision, recall, F1-score metrics
+└── confusion_matrix.npy        # Confusion matrix array
 ```
 
 ---
 
 ### Run Locally
 
-To run locally on your machine, you need to **modify the script**:
+To run locally on your machine, modify the script to work outside of Colab:
 
 #### Step 1: Install Dependencies
 ```bash
 pip install -r requirements.txt
 ```
 
-#### Step 2: Set Up Kaggle
+#### Step 2: Set Up Kaggle API
 ```bash
 # Download kaggle.json from https://www.kaggle.com/settings/account
-# Place it in ~/.kaggle/
+# Create .kaggle directory and copy the token file
 mkdir -p ~/.kaggle
 mv kaggle.json ~/.kaggle/
-chmod 600 ~/.kaggle/kaggle.json
+chmod 600 ~/.kaggle/kaggle.json  # Unix/Mac
+
+# On Windows, save it to: C:\Users\<YourUsername>\.kaggle\kaggle.json
 ```
 
-#### Step 3: Modify the Script
+#### Step 3: Download the Dataset
+```bash
+# Download PlantVillage dataset (one-time setup)
+kaggle datasets download -d emmarex/plantdisease
+unzip plantdisease.zip -d data
+```
+
+#### Step 4: Modify the Script
+
 Remove or comment out these Colab-specific lines:
 ```python
 # Remove these lines:
@@ -133,31 +155,27 @@ files.upload()  # upload kaggle.json
 !unzip plantdisease.zip -d data
 ```
 
-Instead, download the dataset manually:
-```bash
-kaggle datasets download -d emmarex/plantdisease
-unzip plantdisease.zip -d data
-```
-
-#### Step 4: Modify Google Drive Paths
-Replace this:
+Replace Google Drive mount with local directory:
 ```python
+# Replace this:
 from google.colab import drive
 drive.mount('/content/drive')
 SAVE_PATH = '/content/drive/MyDrive/crop_disease_project/'
-```
 
-With a local directory:
-```python
+# With this:
 import os
 SAVE_PATH = './results/'
 os.makedirs(SAVE_PATH, exist_ok=True)
 ```
 
+Remove the Google Drive inference loading section and adjust paths as needed.
+
 #### Step 5: Run the Script
 ```bash
 python crop_disease_detection.py
 ```
+
+Results will be saved to the `./results/` directory.
 
 ---
 
@@ -208,28 +226,60 @@ The training is split into two phases:
 
 ### Phase 1 — Initial Training (Feature Extraction)
 - The EfficientNetB0 base is **frozen** (weights are not updated).
-- Only the custom classifier head is trained.
+- Only the custom classifier head is trained on disease patterns.
 - **Optimizer:** Adam (learning rate = `1e-4`)
 - **Loss:** Sparse Categorical Crossentropy
 - **Epochs:** 10
 - **Batch Size:** 32
+- **Data Augmentation:** Random flips, rotations, and zoom applied to each batch
 
-**Result:** The model learns to recognize disease patterns using pre-trained ImageNet features.
+**What Happens:**
+- Model learns to recognize disease patterns using pre-trained ImageNet features
+- Accuracy and validation loss are plotted after each epoch
+- Model trains faster since only top layers are being optimized
 
-### Phase 2 — Fine-Tuning
+**Output:** Training and validation accuracy/loss curves
+
+### Phase 2 — Fine-Tuning (Transfer Learning)
 - The EfficientNetB0 base model is **unfrozen** (all layers can be updated).
-- The entire model is re-trained with a much smaller learning rate.
+- The entire model is re-trained with a much smaller learning rate to refine pre-trained features.
 - **Optimizer:** Adam (learning rate = `1e-5`)
 - **Loss:** Sparse Categorical Crossentropy
 - **Additional Epochs:** 5
 - **Batch Size:** 32
 
-**Result:** The model adapts pre-trained features to better recognize crop diseases.
+**What Happens:**
+- Previously frozen layers adapt to crop disease detection task
+- Combines initial training history with fine-tuning history
+- Plots show a vertical line indicating where fine-tuning starts
+- Model achieves better accuracy by adapting pre-trained features
 
-### Data Split
-- **Training:** 80% of the dataset
-- **Validation:** 20% of the dataset
-- **Seed:** 123 (for reproducibility)
+**Output:** Combined training + fine-tuning curves showing improvement over all 15 epochs
+
+### Data Pipeline
+- **Dataset:** PlantVillage (54,000 images, 38 disease classes)
+- **Training Split:** 80% of data
+- **Validation Split:** 20% of data
+- **Seed:** 123 (for reproducible splits)
+- **Image Size:** 224×224 pixels
+- **Preprocessing:** Images normalized using EfficientNetB0's preprocess_input
+
+### Evaluation Metrics
+After training, the notebook generates:
+
+1. **Accuracy & Loss Curves**
+   - Training vs. Validation Accuracy (separate + combined graphs)
+   - Training vs. Validation Loss (separate + combined graphs)
+   - Visual marker showing where fine-tuning begins
+
+2. **Confusion Matrix**
+   - Visual heatmap showing prediction accuracy per disease class
+   - Identifies which diseases are commonly confused
+
+3. **Classification Report**
+   - Precision, Recall, and F1-Score for each disease class
+   - Weighted averages for overall model performance
+   - Useful for understanding per-class performance
 
 ---
 
@@ -249,7 +299,15 @@ After training completes, the script saves:
 | `confusion_matrix.npy`        | Confusion matrix for error analysis                      |
 
 ### Inference on New Images
-The script includes a complete inference pipeline:
+
+The notebook includes a complete inference pipeline that:
+1. Loads the trained model and class labels
+2. Accepts an uploaded leaf image
+3. Preprocesses it correctly for EfficientNetB0
+4. Makes predictions with confidence scores
+5. Displays top 3 predictions
+
+**Inference Code:**
 
 ```python
 # Load the trained model
@@ -259,9 +317,15 @@ model = tf.keras.models.load_model('model.keras')
 with open('class_names.json', 'r') as f:
     class_names = json.load(f)
 
-# Preprocess image
-img = image.load_img('path/to/leaf_image.jpg', target_size=(224, 224))
-img_array = preprocess_input(image.img_to_array(img))
+# Upload and preprocess image
+from tensorflow.keras.preprocessing import image
+from tensorflow.keras.applications.efficientnet import preprocess_input
+import numpy as np
+
+IMG_SIZE = (224, 224)
+img = image.load_img('leaf_image.jpg', target_size=IMG_SIZE)
+img_array = image.img_to_array(img)
+img_array = preprocess_input(img_array)  # EfficientNetB0 preprocessing
 img_array = np.expand_dims(img_array, axis=0)
 
 # Make prediction
@@ -272,17 +336,14 @@ confidence = np.max(predictions)
 print(f"Predicted Disease: {predicted_class}")
 print(f"Confidence: {confidence:.2%}")
 
-# Top 3 predictions
+# Display top 3 predictions
 top3 = np.argsort(predictions[0])[-3:][::-1]
+print("\nTop 3 Predictions:")
 for i in top3:
     print(f"{class_names[i]}: {predictions[0][i]:.3f}")
 ```
 
-### Evaluation Metrics
-The script generates:
-- **Confusion Matrix:** Shows which classes are confused with each other
-- **Classification Report:** Precision, recall, and F1-scores per disease class
-- **Training Curves:** Visualization of accuracy and loss during training
+**In the Notebook:** Simply upload a crop leaf image when prompted, and the model will automatically predict the disease and show the result with confidence score and visualization.
 
 ---
 
